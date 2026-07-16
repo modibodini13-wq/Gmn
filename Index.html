@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Le Juste Prix - Jeu du Nombre Mystère</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Police d'écriture élégante importée depuis Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;800&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="game-container">
+        <header>
+            <h1>Le Juste Prix</h1>
+            <p class="subtitle">Trouverez-vous le nombre mystère avant la fin du chrono ?</p>
+        </header>
+
+        <!-- Section de configuration de la partie -->
+        <div class="setup-section" id="setupSection">
+            <h3>Choisissez votre niveau de difficulté :</h3>
+            <div class="difficulty-buttons">
+                <button class="btn diff-btn active" data-diff="easy">Facile (1 à 100 | 10 essais)</button>
+                <button class="btn diff-btn" data-diff="medium">Moyen (1 à 500 | 7 essais)</button>
+                <button class="btn diff-btn" data-diff="hard">Difficile (1 à 1000 | 5 essais)</button>
+            </div>
+            <button class="btn btn-primary" id="startGameBtn">Lancer la partie</button>
+        </div>
+
+        <!-- Section de jeu active (masquée par défaut) -->
+        <div class="game-section hidden" id="gameSection">
+            <div class="stats-bar">
+                <div class="stat-box">
+                    <span class="stat-label">Essais restants</span>
+                    <span class="stat-value" id="attemptsLeft">10</span>
+                </div>
+                <div class="stat-box">
+                    <span class="stat-label">Meilleur Score</span>
+                    <span class="stat-value" id="highScore">-</span>
+                </div>
+            </div>
+
+            <div class="input-area">
+                <label for="guessInput" id="rangeInstruction">Entrez un nombre entre 1 et 100 :</label>
+                <div class="input-group">
+                    <input type="number" id="guessInput" min="1" placeholder="Ex: 42" autocomplete="off">
+                    <button class="btn btn-action" id="guessBtn">Valider</button>
+                </div>
+            </div>
+
+            <div class="feedback-area">
+                <p id="feedbackMessage" class="feedback-neutral">Bonne chance ! Faites votre première proposition.</p>
+                <div class="game-over-controls hidden" id="gameOverControls">
+                    <button class="btn btn-primary" id="restartBtn">Rejouer</button>
+                    <button class="btn btn-secondary" id="menuBtn">Changer de difficulté</button>
+                </div>
+            </div>
+
+            <div class="history-area">
+                <h3>Vos tentatives précédentes :</h3>
+                <ul id="guessHistory" class="history-list">
+                    <!-- Généré dynamiquement en JS -->
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Définition des variables d'état du jeu
+let maxRange = 100;
+let maxAttempts = 10;
+let targetNumber = 0;
+let attemptsLeft = 0;
+let attemptsUsed = 0;
+let selectedDifficulty = 'easy';
+let isGameOver = false;
+
+// Configurations de jeu selon la difficulté
+const configs = {
+    easy: { max: 100, attempts: 10 },
+    medium: { max: 500, attempts: 7 },
+    hard: { max: 1000, attempts: 5 }
+};
+
+// Récupération des éléments du DOM
+const setupSection = document.getElementById('setupSection');
+const gameSection = document.getElementById('gameSection');
+const diffButtons = document.querySelectorAll('.diff-btn');
+const startGameBtn = document.getElementById('startGameBtn');
+
+const attemptsLeftEl = document.getElementById('attemptsLeft');
+const highScoreEl = document.getElementById('highScore');
+const rangeInstruction = document.getElementById('rangeInstruction');
+const guessInput = document.getElementById('guessInput');
+const guessBtn = document.getElementById('guessBtn');
+const feedbackMessage = document.getElementById('feedbackMessage');
+const gameOverControls = document.getElementById('gameOverControls');
+const restartBtn = document.getElementById('restartBtn');
+const menuBtn = document.getElementById('menuBtn');
+const guessHistoryEl = document.getElementById('guessHistory');
+
+// Initialisation de l'application
+init();
+
+function init() {
+    // Écouteur sur les boutons de difficulté
+    diffButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+            diffButtons.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            selectedDifficulty = btn.dataset.diff;
+        });
+    });
+
+    // Contrôles principaux
+    startGameBtn.addEventListener('click', startGame);
+    guessBtn.addEventListener('click', handleGuess);
+    
+    // Possibilité de valider avec la touche Entrée du clavier
+    guessInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') handleGuess();
+    });
+
+    restartBtn.addEventListener('click', resetGame);
+    menuBtn.addEventListener('click', showMenu);
+
+    // Charger le meilleur score existant par défaut
+    updateHighScoreDisplay();
+}
+
+function startGame() {
+    const config = configs[selectedDifficulty];
+    maxRange = config.max;
+    maxAttempts = config.attempts;
+    attemptsLeft = maxAttempts;
+    attemptsUsed = 0;
+    isGameOver = false;
+
+    // Génération du nombre mystère (compris entre 1 et maxRange)
+    targetNumber = Math.floor(Math.random() * maxRange) + 1;
+
+    // Mise à jour de l'interface graphique
+    setupSection.classList.add('hidden');
+    gameSection.classList.remove('hidden');
+    gameOverControls.classList.add('hidden');
+    
+    guessBtn.disabled = false;
+    guessInput.disabled = false;
+    guessInput.value = '';
+    guessInput.focus();
+
+    // Application dynamique des limites d'entrée
+    guessInput.max = maxRange;
+    rangeInstruction.textContent = `Entrez un nombre entre 1 et ${maxRange} :`;
+    attemptsLeftEl.textContent = attemptsLeft;
+    
+    // Nettoyage de l'état précédent
+    guessHistoryEl.innerHTML = '';
+    resetFeedback();
+    updateHighScoreDisplay();
+}
+
+function handleGuess() {
+    if (isGameOver) return;
+
+    const userGuessValue = guessInput.value.trim();
+
+    // Alerte si l'utilisateur soumet sans rien écrire
+    if (userGuessValue === '') {
+        showFeedback('Oups ! Veuillez saisir un nombre.', 'feedback-neutral');
+        return;
+    }
+
+    const guess = parseInt(userGuessValue, 10);
+
+    // Validation des limites autorisées
+    if (isNaN(guess) || guess < 1 || guess > maxRange) {
+        showFeedback(`Entrez un nombre valide entre 1 et ${maxRange}.`, 'feedback-neutral');
+        return;
+    }
+
+    attemptsUsed++;
+    attemptsLeft--;
+    attemptsLeftEl.textContent = attemptsLeft;
+
+    // Vérification du résultat
+    if (guess === targetNumber) {
+        handleWin();
+    } else if (attemptsLeft <= 0) {
+        handleLose();
+    } else {
+        const direction = guess < targetNumber ? 'plus' : 'moins';
+        const feedbackClass = guess < targetNumber ? 'feedback-too-low' : 'feedback-too-high';
+        const message = guess < targetNumber ? 'C\'est PLUS grand ! 📈' : 'C\'est MOINS grand ! 📉';
+        
+        showFeedback(message, feedbackClass);
+        addToHistory(guess, direction);
+    }
+
+    guessInput.value = '';
+    guessInput.focus();
+}
+
+function handleWin() {
+    isGameOver = true;
+    guessInput.disabled = true;
+    guessBtn.disabled = true;
+    showFeedback(`🎉 BRAVO ! Le juste prix était bien ${targetNumber} ! Trouvé en ${attemptsUsed} essai(s).`, 'feedback-win');
+    saveHighScore();
+    showGameOverControls();
+}
+
+function handleLose() {
+    isGameOver = true;
+    guessInput.disabled = true;
+    guessBtn.disabled = true;
+    showFeedback(`💥 Perdu ! Vous n'avez plus d'essais. Le juste prix était ${targetNumber}.`, 'feedback-lose');
+    showGameOverControls();
+}
+
+function showFeedback(message, className) {
+    feedbackMessage.textContent = message;
+    feedbackMessage.className = ''; // Nettoyage complet
+    feedbackMessage.classList.add(className);
+}
+
+function resetFeedback() {
+    feedbackMessage.textContent = 'Bonne chance ! Faites votre première proposition.';
+    feedbackMessage.className = 'feedback-neutral';
+}
+
+function addToHistory(guess, direction) {
+    const li = document.createElement('li');
+    li.classList.add('history-item');
+    
+    if (direction === 'plus') {
+        li.classList.add('too-low');
+        li.innerHTML = `<span>${guess}</span><span class="arrow">📈 Plus</span>`;
+    } else {
+        li.classList.add('too-high');
+        li.innerHTML = `<span>${guess}</span><span class="arrow">📉 Moins</span>`;
+    }
+    
+    // Insère le nouvel essai en haut de la liste pour éviter d'avoir à faire défiler l'historique
+    guessHistoryEl.insertBefore(li, guessHistoryEl.firstChild);
+}
+
+function showGameOverControls() {
+    gameOverControls.classList.remove('hidden');
+}
+
+function resetGame() {
+    startGame();
+}
+
+function showMenu() {
+    gameSection.classList.add('hidden');
+    setupSection.classList.remove('hidden');
+}
+
+// Système de sauvegarde des meilleurs scores (High Score) via LocalStorage
+function saveHighScore() {
+    const currentRecord = localStorage.getItem(`highScore_${selectedDifficulty}`);
+    
+    // Moins d'essais utilisés = meilleur score
+    if (!currentRecord || attemptsUsed < parseInt(currentRecord, 10)) {
+        localStorage.setItem(`highScore_${selectedDifficulty}`, attemptsUsed);
+        updateHighScoreDisplay();
+    }
+}
+
+function updateHighScoreDisplay() {
+    const record = localStorage.getItem(`highScore_${selectedDifficulty}`);
+    if (record) {
+        highScoreEl.textContent = `${record} ${parseInt(record, 10) === 1 ? 'essai' : 'essais'}`;
+    } else {
+        highScoreEl.textContent = '-';
+    }
+}
+
+    </script>
+    <Style>
+       /* Variables de couleurs globales */
+:root {
+    --primary: #6366f1;
+    --primary-hover: #4f46e5;
+    --secondary: #64748b;
+    --secondary-hover: #475569;
+    --background: #0f172a;
+    --card-bg: rgba(30, 41, 59, 0.7);
+    --text: #f8fafc;
+    --text-muted: #94a3b8;
+    --success: #10b981;
+    --warning: #f59e0b;
+    --danger: #ef4444;
+    --border: rgba(255, 255, 255, 0.1);
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    font-family: 'Poppins', sans-serif;
+}
+
+body {
+    background: radial-gradient(circle at top right, #1e1b4b, #0f172a);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+}
+
+/* Boîte de jeu avec effet verre flouté */
+.game-container {
+    background: var(--card-bg);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid var(--border);
+    border-radius: 24px;
+    padding: 40px;
+    width: 100%;
+    max-width: 600px;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+    text-align: center;
+}
+
+header h1 {
+    font-size: 2.5rem;
+    font-weight: 800;
+    background: linear-gradient(to right, #818cf8, #c084fc);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 8px;
+}
+
+.subtitle {
+    color: var(--text-muted);
+    font-size: 0.95rem;
+    margin-bottom: 30px;
+    line-height: 1.4;
+}
+
+/* Boutons */
+.btn {
+    font-size: 1rem;
+    font-weight: 600;
+    padding: 12px 24px;
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease-in-out;
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, var(--primary), #8b5cf6);
+    color: white;
+    box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);
+    width: 100%;
+}
+
+.btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(99, 102, 241, 0.6);
+}
+
+.btn-secondary {
+    background: var(--secondary);
+    color: white;
+}
+
+.btn-secondary:hover {
+    background: var(--secondary-hover);
+}
+
+/* Menu de difficulté */
+.setup-section h3 {
+    margin-bottom: 20px;
+    font-weight: 400;
+}
+
+.difficulty-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 30px;
+}
+
+.diff-btn {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border);
+    color: var(--text);
+    text-align: left;
+    padding: 16px;
+}
+
+.diff-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.diff-btn.active {
+    background: rgba(99, 102, 241, 0.2);
+    border-color: var(--primary);
+    box-shadow: 0 0 12px rgba(99, 102, 241, 0.2);
+}
+
+/* Masquer les sections */
+.hidden {
+    display: none !important;
+}
+
+/* Barre de statistiques en jeu */
+.stats-bar {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 30px;
+    gap: 15px;
+}
+
+.stat-box {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 12px 20px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.stat-label {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.stat-value {
+    font-size: 1.4rem;
+    font-weight: 800;
+}
+
+/* Entrée utilisateur */
+.input-area {
+    margin-bottom: 30px;
+    text-align: left;
+}
+
+.input-area label {
+    display: block;
+    margin-bottom: 10px;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+}
+
+.input-group {
+    display: flex;
+    gap: 12px;
+}
+
+#guessInput {
+    flex: 1;
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px;
+    color: white;
+    font-size: 1.2rem;
+    font-weight: 600;
+    text-align: center;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+#guessInput:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 8px rgba(99, 102, 241, 0.3);
+}
+
+/* Masquage des flèches par défaut sur le champ type="number" */
+#guessInput::-webkit-outer-spin-button,
+#guessInput::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+#guessInput[type=number] {
+    -moz-appearance: textfield;
+}
+
+.btn-action {
+    background: var(--primary);
+    color: white;
+    padding: 0 30px;
+}
+
+.btn-action:hover {
+    background: var(--primary-hover);
+}
+
+/* Retours utilisateur (Feedback) */
+.feedback-area {
+    min-height: 80px;
+    margin-bottom: 30px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 15px;
+}
+
+#feedbackMessage {
+    font-size: 1.15rem;
+    font-weight: 600;
+    padding: 12px 20px;
+    border-radius: 12px;
+    width: 100%;
+    transition: all 0.3s ease;
+}
+
+.feedback-neutral {
+    color: var(--text);
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--border);
+}
+
+.feedback-too-low {
+    color: var(--warning);
+    background: rgba(245, 158, 11, 0.1);
+    border: 1px solid rgba(245, 158, 11, 0.2);
+    animation: bounce 0.3s ease;
+}
+
+.feedback-too-high {
+    color: var(--danger);
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    animation: bounce 0.3s ease;
+}
+
+.feedback-win {
+    color: var(--success);
+    background: rgba(16, 185, 129, 0.1);
+    border: 1px solid rgba(16, 185, 129, 0.2);
+    animation: celebrate 0.5s ease;
+}
+
+.feedback-lose {
+    color: var(--danger);
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    animation: shake 0.5s ease;
+}
+
+.game-over-controls {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    width: 100%;
+}
+
+.game-over-controls .btn {
+    flex: 1;
+}
+
+/* Historique */
+.history-area {
+    border-top: 1px solid var(--border);
+    padding-top: 25px;
+    text-align: left;
+}
+
+.history-area h3 {
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    margin-bottom: 15px;
+}
+
+.history-list {
+    list-style: none;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+    gap: 10px;
+    max-height: 150px;
+    overflow-y: auto;
+    padding-right: 5px;
+}
+
+/* Scrollbar personnalisée */
+.history-list::-webkit-scrollbar {
+    width: 6px;
+}
+.history-list::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 3px;
+}
+.history-list::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 3px;
+}
+
+.history-item {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px;
+    text-align: center;
+    font-weight: 600;
+    font-size: 0.85rem;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.history-item.too-high {
+    border-color: rgba(239, 68, 68, 0.3);
+    color: #fca5a5;
+}
+
+.history-item.too-low {
+    border-color: rgba(245, 158, 11, 0.3);
+    color: #fde047;
+}
+
+.history-item .arrow {
+    font-size: 0.75rem;
+    opacity: 0.8;
+}
+
+/* Animations de transition */
+@keyframes bounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-6px); }
+}
+
+@keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    20%, 60% { transform: translateX(-6px); }
+    40%, 80% { transform: translateX(6px); }
+}
+
+@keyframes celebrate {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+}
+
+/* Gestion du responsive */
+@media (max-width: 480px) {
+    .game-container {
+        padding: 24px;
+    }
+    .stats-bar {
+        flex-direction: column;
+        gap: 10px;
+    }
+    .input-group {
+        flex-direction: column;
+    }
+    .btn-action {
+        padding: 12px;
+    }
+    .game-over-controls {
+        flex-direction: column;
+    }
+}
+ 
+    </Style>
+</body>
+  </html>
+      
