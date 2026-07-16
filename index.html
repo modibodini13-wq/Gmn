@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Le Juste Prix - Jeu du Nombre Mystère</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Police d'écriture élégante importée depuis Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;800&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="game-container">
+        <header>
+            <h1>Le Juste Prix</h1>
+            <p class="subtitle">Trouverez-vous le nombre mystère avant la fin du chrono ?</p>
+        </header>
+
+        <!-- Section de configuration de la partie -->
+        <div class="setup-section" id="setupSection">
+            <h3>Choisissez votre niveau de difficulté :</h3>
+            <div class="difficulty-buttons">
+                <button class="btn diff-btn active" data-diff="easy">Facile (1 à 100 | 10 essais)</button>
+                <button class="btn diff-btn" data-diff="medium">Moyen (1 à 500 | 7 essais)</button>
+                <button class="btn diff-btn" data-diff="hard">Difficile (1 à 1000 | 5 essais)</button>
+            </div>
+            <button class="btn btn-primary" id="startGameBtn">Lancer la partie</button>
+        </div>
+
+        <!-- Section de jeu active (masquée par défaut) -->
+        <div class="game-section hidden" id="gameSection">
+            <div class="stats-bar">
+                <div class="stat-box">
+                    <span class="stat-label">Essais restants</span>
+                    <span class="stat-value" id="attemptsLeft">10</span>
+                </div>
+                <div class="stat-box">
+                    <span class="stat-label">Meilleur Score</span>
+                    <span class="stat-value" id="highScore">-</span>
+                </div>
+            </div>
+
+            <div class="input-area">
+                <label for="guessInput" id="rangeInstruction">Entrez un nombre entre 1 et 100 :</label>
+                <div class="input-group">
+                    <input type="number" id="guessInput" min="1" placeholder="Ex: 42" autocomplete="off">
+                    <button class="btn btn-action" id="guessBtn">Valider</button>
+                </div>
+            </div>
+
+            <div class="feedback-area">
+                <p id="feedbackMessage" class="feedback-neutral">Bonne chance ! Faites votre première proposition.</p>
+                <div class="game-over-controls hidden" id="gameOverControls">
+                    <button class="btn btn-primary" id="restartBtn">Rejouer</button>
+                    <button class="btn btn-secondary" id="menuBtn">Changer de difficulté</button>
+                </div>
+            </div>
+
+            <div class="history-area">
+                <h3>Vos tentatives précédentes :</h3>
+                <ul id="guessHistory" class="history-list">
+                    <!-- Généré dynamiquement en JS -->
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
